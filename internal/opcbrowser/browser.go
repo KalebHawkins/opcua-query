@@ -54,19 +54,23 @@ type Result struct {
 }
 
 func Browse(ctx context.Context, req Request) (Result, error) {
-	endpoint := normalizeEndpoint(req.Endpoint)
-	authType := ua.UserTokenTypeAnonymous
-	if req.Username != "" {
-		authType = ua.UserTokenTypeUserName
-	}
-
-	client, err := newClient(ctx, endpoint, req, authType)
+	client, err := connectClient(ctx, req)
 	if err != nil {
 		return Result{}, err
 	}
 	defer closeClient(client)
 
 	return browseWithClient(ctx, client, req)
+}
+
+func connectClient(ctx context.Context, req Request) (*opcua.Client, error) {
+	endpoint := normalizeEndpoint(req.Endpoint)
+	authType := ua.UserTokenTypeAnonymous
+	if req.Username != "" {
+		authType = ua.UserTokenTypeUserName
+	}
+
+	return newClient(ctx, endpoint, req, authType)
 }
 
 func browseWithClient(ctx context.Context, client *opcua.Client, req Request) (Result, error) {
@@ -309,6 +313,11 @@ func buildMatch(ctx context.Context, node *opcua.Node, nodePath, browseName, dis
 	}
 	matched[key] = struct{}{}
 
+	match := newMatch(ctx, node, nodePath, browseName, displayName, nodeClass, depth, readValues)
+	return []Match{match}
+}
+
+func newMatch(ctx context.Context, node *opcua.Node, nodePath, browseName, displayName string, nodeClass ua.NodeClass, depth int, readValues bool) Match {
 	match := Match{
 		Path:        nodePath,
 		NodeID:      node.ID.String(),
@@ -325,7 +334,7 @@ func buildMatch(ctx context.Context, node *opcua.Node, nodePath, browseName, dis
 			match.Value = renderVariant(value)
 		}
 	}
-	return []Match{match}
+	return match
 }
 
 func describeCurrentNode(ctx context.Context, node *opcua.Node) (string, string, ua.NodeClass, error) {
