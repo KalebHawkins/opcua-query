@@ -25,6 +25,7 @@ type Request struct {
 	MaxDepth   int
 	MaxNodes   int
 	ReadValues bool
+	Interval   time.Duration
 }
 
 type Match struct {
@@ -53,6 +54,22 @@ type Result struct {
 }
 
 func Browse(ctx context.Context, req Request) (Result, error) {
+	endpoint := normalizeEndpoint(req.Endpoint)
+	authType := ua.UserTokenTypeAnonymous
+	if req.Username != "" {
+		authType = ua.UserTokenTypeUserName
+	}
+
+	client, err := newClient(ctx, endpoint, req, authType)
+	if err != nil {
+		return Result{}, err
+	}
+	defer closeClient(client)
+
+	return browseWithClient(ctx, client, req)
+}
+
+func browseWithClient(ctx context.Context, client *opcua.Client, req Request) (Result, error) {
 	if req.MaxDepth <= 0 {
 		req.MaxDepth = 8
 	}
@@ -64,16 +81,6 @@ func Browse(ctx context.Context, req Request) (Result, error) {
 	}
 
 	endpoint := normalizeEndpoint(req.Endpoint)
-	authType := ua.UserTokenTypeAnonymous
-	if req.Username != "" {
-		authType = ua.UserTokenTypeUserName
-	}
-
-	client, err := newClient(ctx, endpoint, req, authType)
-	if err != nil {
-		return Result{}, err
-	}
-	defer client.Close(ctx)
 
 	browseCtx, cancel := context.WithTimeout(ctx, req.Timeout)
 	defer cancel()
@@ -470,4 +477,10 @@ func discoveredFilters(discovered map[string]struct{}) []string {
 		filters = filters[:12]
 	}
 	return filters
+}
+
+func closeClient(client *opcua.Client) {
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	client.Close(cleanupCtx)
 }
