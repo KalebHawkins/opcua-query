@@ -10,6 +10,7 @@ Repository: `github.com/KalebHawkins/opcua-query`
 - Browse from the OPC UA Objects folder or a supplied start node id
 - Match discovered browse paths against AWS IoT SiteWise-style filters using `/`, `*`, and `**`
 - Read live values for matched variable nodes
+- Subscribe to matched variable nodes and stream live value changes until stopped
 - Render a colorized report in the terminal
 - Copy the generated SiteWise filter JSON or raw root path to the clipboard
 
@@ -37,12 +38,14 @@ After `go install`, use the `opcua-query` binary from your Go bin directory.
 opcua-query browse --server localhost:4840 --filter "/**/PLC*"
 opcua-query browse --server ignition.local:62541 --filter "/Plant/Area 1/**" --copy
 opcua-query browse --server 10.0.0.25:53530 --username operator --password secret --filter "/Line 2/Counter*"
+opcua-query watch --server ignition.local:62541 --filter "/Plant/Area 1/Line 2/**" --interval 500ms
 ```
 
 Run from source during development:
 
 ```powershell
 go run . browse --server opc.tcp://ignition.local:62541 --filter "/Tag Providers/MyProvider/**"
+go run . watch --server opc.tcp://ignition.local:62541 --filter "/Tag Providers/MyProvider/Counter*"
 ```
 
 ## Options
@@ -57,7 +60,19 @@ go run . browse --server opc.tcp://ignition.local:62541 --filter "/Tag Providers
 --copy          Copy the generated filter output to the clipboard
 --copy-format   Clipboard format: json or path
 --timeout       Overall connect and browse timeout
+--interval      Subscription publishing interval for watch mode
 ```
+
+## Watch mode
+
+Use `watch` when you want a true OPC UA subscription instead of a snapshot read. The command discovers variable nodes that match the supplied filter, subscribes to them, and streams value changes until you press `Ctrl+C`.
+
+```powershell
+opcua-query watch --server localhost:4840 --filter "/**/Counter*"
+opcua-query watch --server ignition.local:62541 --filter "/Plant/Area 1/**" --interval 250ms
+```
+
+When you stop the command with `Ctrl+C`, the CLI cancels the subscription and closes the OPC UA session cleanly before exiting.
 
 ## Config file
 
@@ -75,6 +90,7 @@ max_nodes: 1000
 read_values: true
 copy: false
 copy_format: json
+watch_interval: 1s
 ```
 
 Environment variables use the `OPCUA_QUERY_` prefix. For example, `OPCUA_QUERY_SERVER`, `OPCUA_QUERY_TIMEOUT`, and `OPCUA_QUERY_FILTER`.
